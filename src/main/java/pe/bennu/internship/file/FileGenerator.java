@@ -1,28 +1,32 @@
 package pe.bennu.internship.file;
 
+import java.nio.file.Path;
+
 public class FileGenerator {
     // no instanciable
     private FileGenerator() {}
 
+
     /**
-     * Crea un archivo de números aleatorios del -10 a 10 (no inclusivo).
-     * Si había un archivo antes, se sobreescribe.
+     * Devuelve un arreglo de numeros reales de máximo dos decimales de tamaño 'size'
+     * en el rango abierto ]-size, size[ 
      * 
-     * @param pathStr Ruta en string del archivo por crear
-     * @param size Cantidad de números aleatorios por crear
+     * @param size Tamaño del arreglo
+     * @return Arreglo aleatorio
      */
-    public static void createRandomFile(String pathStr, int size) {
-        // to-do
+    public static double[] getRandomArray(int size) {
+        // TODO
+        return new double[0];
     }
 
     /**
-     * Crea un archivo de números ordenados de acuerdo al archivo de aleatorios actual. Si
-     * había un archivo de ordenados antes, se sobreescribe.
+     * Crea un archivo a partir de un arreglo de números. Si
+     * había un archivo en la misma ruta, se sobreescribe.
      * 
-     * @param pathStr Ruta en string del archivo por crear
+     * @param path Ruta del archivo por crear
      * @param sortedArray Arreglo ordenado de los numeros ordenados previamente
      */
-    public static void createSortedFile(String pathStr, double[] sortedArray) {
-        // to-do
+    public static void writeFile(Path path, double[] numArray) {
+        // TODO
     }
 }

@@ -1,6 +1,8 @@
 package pe.bennu.internship;
 
+import java.nio.file.Path;
 import java.util.Scanner;
+import java.util.function.Supplier;
 
 import pe.bennu.internship.file.FileGenerator;
 import pe.bennu.internship.file.FileReader;
@@ -16,8 +18,8 @@ import pe.bennu.internship.sort.SortStrategy;
 import pe.bennu.internship.state.AppState;
 
 public class App {
-    private static final String originPath = "data/origin.txt";
-    private static final String sortedPath = "data/sorted.txt";
+    private static final Path ORIGIN_PATH = Path.of("data/origin.txt");
+    private static final Path SORTED_PATH= Path.of("data/sorted.txt");
 
     public static void main(String[] args) {
         boolean exitProgram = false;
@@ -27,7 +29,7 @@ public class App {
         showMenu();
 
         while(true) {
-            System.out.print("Seleccione una opcion : ");
+            System.out.print("Seleccione una opción: ");
 
             try {
                 int option = Integer.parseInt(scanner.nextLine());
@@ -41,9 +43,22 @@ public class App {
                         
                         int size = Integer.parseInt(scanner.nextLine());
 
+                        if(size < 1) {
+                            System.out.println("Debe ser de 1 a más números.");
+                            break;
+                        }
+
                         System.out.println("Generando nuevo archivo...");
 
-                        FileGenerator.createRandomFile(originPath, size);
+                        double[] numArray = measure(
+                            "Generación de números",
+                            () -> FileGenerator.getRandomArray(size)
+                        );
+
+                        measure(
+                            "Escritura de archivo",
+                            () -> FileGenerator.writeFile(ORIGIN_PATH, numArray)
+                        );
                         
                         System.out.println("Nuevo archivo generado.");
                         
@@ -58,12 +73,16 @@ public class App {
 
                         System.out.println("Leyendo archivo...");
 
-                        double[] numArray = FileReader.read(originPath);
+                        double[] numArray = measure(
+                            "Lectura de archivo", 
+                            () -> FileReader.read(ORIGIN_PATH)
+                        );
+                        
                         printNumbers(numArray);
 
                         break;
                     }
-                    case 3: {// SORT FILE
+                    case 3: { // SORT FILE
                         if(!state.canRead()) {
                             System.out.println("Primero debes generar un archivo nuevo.");
                             break;
@@ -79,31 +98,48 @@ public class App {
                             "Seleccione: "
                         );
 
-                        double[] numArray = FileReader.read(originPath);
+                        double[] numArray = FileReader.read(ORIGIN_PATH);
 
                         int sortMethod = Integer.parseInt(scanner.nextLine());
-                        SortStrategy strategy = null;
+                        SortStrategy strategy;
+                        String methodName;
 
                         switch(sortMethod) {
                             case 1:
-                                strategy = new JavaSortStrategy(); break;
+                                strategy = new JavaSortStrategy();
+                                methodName = "Java Sort";
+                                break;
                             case 2:
-                                strategy = new ParallelSortStrategy(); break;
+                                strategy = new ParallelSortStrategy();
+                                methodName = "Parallel Sort";
+                                break;
                             case 3:
-                                strategy = new QuickSortStrategy(); break;
+                                strategy = new QuickSortStrategy();
+                                methodName = "QuickSort";
+                                break;
                             case 4:
-                                strategy = new HeapSortStrategy(); break;
+                                strategy = new HeapSortStrategy();
+                                methodName = "HeapSort";
+                                break;
                             case 5:
-                                strategy = new BubbleSortStrategy(); break;
+                                strategy = new BubbleSortStrategy();
+                                methodName = "BubbleSort";
+                                break;
                             default:
                                 throw new Exception("Metodo invalido");
                         }
 
                         System.out.println("Ordenando archivo...");
 
-                        double[] sortedArray = strategy.sort(numArray);
+                        measure(
+                            methodName,
+                            () -> strategy.sort(numArray)
+                        );
 
-                        FileGenerator.createSortedFile(sortedPath, sortedArray);
+                        measure(
+                            "Escritura de archivo ordenado",
+                            () -> FileGenerator.writeFile(SORTED_PATH, numArray)
+                        );
 
                         state.markSorted();
                         break;
@@ -121,7 +157,10 @@ public class App {
 
                         System.out.println("Leyendo archivo ordenado...");
 
-                        double[] sortedArray = FileReader.read(sortedPath);
+                        double[] sortedArray = measure(
+                            "Lectura de archivo ordenado",
+                            () -> FileReader.read(SORTED_PATH)
+                        );
                         printNumbers(sortedArray);
 
                         break;
@@ -129,27 +168,31 @@ public class App {
                     case 5: { // SEARCH IN FILE
                         if(!state.canRead()) {
                             System.out.println("Primero debes generar un nuevo archivo.");
+                            break;
                         }
 
-                        System.out.println("¿Que numero esta buscando?: ");
+                        System.out.print("¿Que numero esta buscando?: ");
                         double numToSearch = Double.parseDouble(scanner.nextLine());
 
-                        double[] numsArray = null;
-                        SearchStrategy strategy = null;
+                        double[] numsArray;
+                        SearchStrategy strategy;
 
                         if(state.canSearchBinary()) {
                             System.out.println("Archivo ordenado encontrado. Se usara BinarySearch.");
-                            numsArray = FileReader.read(sortedPath);
-                            strategy = new BinarySearchStrategy();    
+                            numsArray = FileReader.read(SORTED_PATH);
+                            strategy = new BinarySearchStrategy();
                         }
                         else {
-                            numsArray = FileReader.read(originPath);
+                            numsArray = FileReader.read(ORIGIN_PATH);
                             strategy = new LinearSearchStrategy();
                         }
 
                         System.out.println("Buscando el numero...");
 
-                        int result = strategy.search(numsArray, numToSearch);
+                        int result = measure(
+                            "Busqueda de numero",
+                            () -> strategy.search(numsArray, numToSearch)
+                        );
 
                         if(result < 0) {
                             System.out.println("Numero no encontrado");
@@ -161,13 +204,13 @@ public class App {
                     }
                     case 6: // EXIT
                         System.out.println("Fin");
+                        // opcional (creo): borrar los archivos al final
 
                         exitProgram = true;
 
                         break;
                     default:
                         System.out.println("Opción no válida");
-
                         break;
                 }
             } catch(NumberFormatException numException) {
@@ -197,12 +240,49 @@ public class App {
     }
 
     private static void printNumbers(double[] numArray) {
-        String result = numArray.length > 0 ? "" : "\n";
+        if(numArray == null || numArray.length == 0) {
+            System.out.println("Sin numeros por imprimir");
+            return;
+        }
+
+        // Para evitar redimensionar el tamaño, se estima en base al
+        // tamaño real del arreglo
+        StringBuilder result = new StringBuilder(numArray.length * 10);
 
         for (Double num : numArray) {
-            result += (num.toString() + "\n");
+            result.append(num).append("\n");
         }
 
         System.out.print(result);
+    }
+
+    private static <T> T measure(String message, Supplier<T> operation) {
+        long start = System.nanoTime();
+
+        T result = operation.get();
+
+        long elapsed = System.nanoTime() - start;
+
+        System.out.printf(
+            "%s: %.3f ms%n",
+            message,
+            elapsed / 1_000_000.0
+        );
+
+        return result;
+    }
+
+    private static void measure(String message, Runnable operation) {
+        long start = System.nanoTime();
+
+        operation.run();
+
+        long elapsed = System.nanoTime() - start;
+
+        System.out.printf(
+            "%s: %.3f ms%n",
+            message,
+            elapsed / 1_000_000.0
+        );
     }
 }
