@@ -1,10 +1,13 @@
 package pe.bennu.internship;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Scanner;
 import java.util.function.Supplier;
 
 import pe.bennu.internship.file.FileGenerator;
+import pe.bennu.internship.file.FileOperationException;
 import pe.bennu.internship.file.FileReader;
 import pe.bennu.internship.search.BinarySearchStrategy;
 import pe.bennu.internship.search.LinearSearchStrategy;
@@ -18,10 +21,18 @@ import pe.bennu.internship.sort.SortStrategy;
 import pe.bennu.internship.state.AppState;
 
 public class App {
-    private static final Path ORIGIN_PATH = Path.of("data/origin.txt");
-    private static final Path SORTED_PATH= Path.of("data/sorted.txt");
+    private static final Path ORIGIN_PATH = Path.of("tmp/origin.txt");
+    private static final Path SORTED_PATH = Path.of("tmp/sorted.txt");
 
-    public static void main(String[] args) {
+    public static void main(String[] args) {        
+        try {
+            // Crea la carpeta "tmp" en caso no exista
+            Files.createDirectories(Path.of("tmp"));
+        } catch (IOException e) {
+            System.out.println("Error al crear la carpeta temporal: " + e.getMessage());
+            return;
+        }
+
         boolean exitProgram = false;
         Scanner scanner = new Scanner(System.in);
         AppState state = new AppState();
@@ -39,12 +50,12 @@ public class App {
                         showMenu();
                         break;
                     case 1: { // NEW FILE
-                        System.out.print("¿Cuantos numeros quiere generar?: ");
+                        System.out.print("¿Cuántos números quiere generar?: ");
                         
                         int size = Integer.parseInt(scanner.nextLine());
 
-                        if(size < 1) {
-                            System.out.println("Debe ser de 1 a más números.");
+                        if(size < 1 || size > 100_000) {
+                            System.out.println("El tamaño debe estar entre 1 y 100_000 números.");
                             break;
                         }
 
@@ -63,6 +74,7 @@ public class App {
                         System.out.println("Nuevo archivo generado.");
                         
                         state.markGenerated();
+                        state.setFileSize(size);
                         break;
                     }
                     case 2: { // READ FILE
@@ -75,7 +87,7 @@ public class App {
 
                         double[] numArray = measure(
                             "Lectura de archivo", 
-                            () -> FileReader.read(ORIGIN_PATH)
+                            () -> FileReader.read(ORIGIN_PATH, state.getFileSize())
                         );
                         
                         printNumbers(numArray);
@@ -89,7 +101,7 @@ public class App {
                         }
 
                         System.out.print(
-                            "¿Que metodo de ordenamiento quiere utilizar?:\n" +
+                            "¿Qué metodo de ordenamiento quiere utilizar?:\n" +
                             "1 - Java Sort\n" + 
                             "2 - Java ParallelSort\n" + 
                             "3 - Java QuickSort\n" + 
@@ -98,7 +110,7 @@ public class App {
                             "Seleccione: "
                         );
 
-                        double[] numArray = FileReader.read(ORIGIN_PATH);
+                        double[] numArray = FileReader.read(ORIGIN_PATH, state.getFileSize());
 
                         int sortMethod = Integer.parseInt(scanner.nextLine());
                         SortStrategy strategy;
@@ -126,7 +138,7 @@ public class App {
                                 methodName = "BubbleSort";
                                 break;
                             default:
-                                throw new Exception("Metodo invalido");
+                                throw new Exception("Método inválido");
                         }
 
                         System.out.println("Ordenando archivo...");
@@ -159,8 +171,9 @@ public class App {
 
                         double[] sortedArray = measure(
                             "Lectura de archivo ordenado",
-                            () -> FileReader.read(SORTED_PATH)
+                            () -> FileReader.read(SORTED_PATH, state.getFileSize())
                         );
+
                         printNumbers(sortedArray);
 
                         break;
@@ -171,41 +184,40 @@ public class App {
                             break;
                         }
 
-                        System.out.print("¿Que numero esta buscando?: ");
+                        System.out.print("¿Qué número esta buscando?: ");
                         double numToSearch = Double.parseDouble(scanner.nextLine());
 
                         double[] numsArray;
                         SearchStrategy strategy;
 
                         if(state.canSearchBinary()) {
-                            System.out.println("Archivo ordenado encontrado. Se usara BinarySearch.");
-                            numsArray = FileReader.read(SORTED_PATH);
+                            System.out.println("Archivo ordenado encontrado. Se usará BinarySearch sobre el archivo ordenado.");
+                            numsArray = FileReader.read(SORTED_PATH, state.getFileSize());
                             strategy = new BinarySearchStrategy();
                         }
                         else {
-                            numsArray = FileReader.read(ORIGIN_PATH);
+                            System.out.println("Sin archivo ordenado. Se usará LinearSearch sobre el archivo original.");
+                            numsArray = FileReader.read(ORIGIN_PATH, state.getFileSize());
                             strategy = new LinearSearchStrategy();
                         }
 
-                        System.out.println("Buscando el numero...");
+                        System.out.println("Buscando el número...");
 
                         int result = measure(
-                            "Busqueda de numero",
+                            "Busqueda de número",
                             () -> strategy.search(numsArray, numToSearch)
                         );
 
                         if(result < 0) {
-                            System.out.println("Numero no encontrado");
+                            System.out.println("Número no encontrado");
                         } else {
-                            System.out.println("Numero encontrado en la posicion: " + result);
+                            System.out.println("Número encontrado en la posición del archivo respectivo: " + result);
                         }
                         
                         break;
                     }
                     case 6: // EXIT
                         System.out.println("Fin");
-                        // opcional (creo): borrar los archivos al final
-
                         exitProgram = true;
 
                         break;
@@ -213,8 +225,10 @@ public class App {
                         System.out.println("Opción no válida");
                         break;
                 }
-            } catch(NumberFormatException numException) {
-                System.out.println("Error: Ingrese un número");
+            } catch(NumberFormatException e) {
+                System.out.println("Entrada invalida: Debe ingresar un número");
+            } catch(FileOperationException e) {
+                System.out.println("Error de archivo: " + e.getMessage());
             } catch(Exception e) {
                 System.out.println("Error: " + e.getMessage());
             }
@@ -259,15 +273,19 @@ public class App {
     private static <T> T measure(String message, Supplier<T> operation) {
         long start = System.nanoTime();
 
-        T result = operation.get();
+        T result;
 
-        long elapsed = System.nanoTime() - start;
-
-        System.out.printf(
-            "%s: %.3f ms%n",
-            message,
-            elapsed / 1_000_000.0
-        );
+        try {
+            result = operation.get();
+        }
+        finally {
+            long elapsed = System.nanoTime() - start;
+            System.out.printf(
+                "%s: %.3f ms%n",
+                message,
+                elapsed / 1_000_000.0
+            );
+        }
 
         return result;
     }
@@ -275,14 +293,18 @@ public class App {
     private static void measure(String message, Runnable operation) {
         long start = System.nanoTime();
 
-        operation.run();
+        try {
+            operation.run();
+        }
+        finally {
+            long elapsed = System.nanoTime() - start;
+    
+            System.out.printf(
+                "%s: %.3f ms%n",
+                message,
+                elapsed / 1_000_000.0
+            );
+        }
 
-        long elapsed = System.nanoTime() - start;
-
-        System.out.printf(
-            "%s: %.3f ms%n",
-            message,
-            elapsed / 1_000_000.0
-        );
     }
 }
